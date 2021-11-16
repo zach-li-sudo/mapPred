@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 from LSTMnet import LSTM
 import networkx as nx
-from random import random
+from random import random, seed
 import numpy as np
 from time import time
 import os
@@ -43,62 +43,36 @@ def draw_plot(train_yt,train_ypr,train_ygt,test_yt,test_ypr,test_ygt,edge_idx,tr
     png_dir = edge_show_path
     if not os.path.exists(png_dir):
         os.mkdir(png_dir)
+    
+    trans = 0
     if trans:
-        figname = 'edge'+str(edge_idx)+'_trans_quxian.png'
+        figname = 'edge'+str(edge_idx)+'curve_pred.png'
     else:
-        figname = 'edge'+str(edge_idx)+'_ori_quxian.png'
+        figname = 'edge'+str(edge_idx)+'curve_pred.png'
     plt.savefig(png_dir+figname)
     plt.clf()
 
 
 
-def is_in_area(point, area):
-    x = point[0]
-    y = point[1]
+def heatmap_sequence_generator(t, params, grid_size):
+    A = params[:, 0]
+    B = params[:, 1]
 
-    xlb = area[0]
-    xub = area[1]
-    ylb = area[2]
-    yub = area[3]
+    y = 10*A.dot(np.sin(0.1*t)) + np.abs(B) + 0.1*A*random()
 
-    is_in_x_range = ((xlb <= x) & (x <= xub))
-    is_in_y_range = ((ylb <= y) & (y <= yub))
-
-    return (is_in_x_range & is_in_y_range)
-
-def heatmap_animate(i):
-    artificial_congested_area = [0, 3, 2, 4]
-    # artificial_congested_area = [0, 3, 1, 5]
-    # crowded_area1 = [1, 2, 2, 2]
-    # crowded_area2 = [0, 1, 1, 2]
-
-    area = artificial_congested_area
-    grid_size = (4, 7)
     unweighted_grid_graph = nx.grid_2d_graph(grid_size[0], grid_size[1])
     unweighted_grid_graph.pos = dict((n,n) for n in unweighted_grid_graph.nodes())
 
     dynamic_graph = nx.Graph()
-    for edge in unweighted_grid_graph.edges():
-        if (is_in_area(edge[0], area) and is_in_area(edge[1], area)):
-            heat = random()
-            heat = heat*5
-            heat = "{:.2f}".format(heat)
-            heat = float(heat)
 
-            dynamic_graph.add_edge(edge[0], edge[1], weight=heat)
-        else:
-            if (random() < 0.06):
-                heat = random()
-                heat = "{:.2f}".format(heat)
-                heat = float(heat)
-                dynamic_graph.add_edge(edge[0], edge[1], weight=4*heat)
-            else:
-                heat = random()
-                heat = "{:.2f}".format(heat)
-                heat = float(heat)
-                dynamic_graph.add_edge(edge[0], edge[1], weight=heat)
+    i = 0
+    for edge in unweighted_grid_graph.edges():
+        heat = y[i].item()
+        i += 1
+        dynamic_graph.add_edge(edge[0], edge[1], weight=heat)
     
     return dynamic_graph
+        
 
 
 def unweighted_graph(inter1, inter2, size=(4,7)):
@@ -106,6 +80,7 @@ def unweighted_graph(inter1, inter2, size=(4,7)):
     unweighted_grid_graph.pos = dict((n,n) for n in unweighted_grid_graph.nodes())
     dist = nx.shortest_path_length(unweighted_grid_graph, inter1, inter2)
     return unweighted_grid_graph, dist
+
 
 
 class GraphPredictor:
@@ -119,17 +94,16 @@ class GraphPredictor:
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
         self.n_predictions = 50
-        self.n_next = 100
+        self.n_next = 50
         self.num_edges = 45
 
-        self.epochs = 35
+        self.epochs = 50
         self.model_savepath = './models/model1/model_gp.pth'
 
         self.all_X, self.all_Y, self.pred_X = None, None, None
 
-        self.edge_idxs_show = [0,10,15,20,25,30,35]
+        self.edge_idxs_show = [i for i in range(0, 45, 5)]
         self.edge_show_dir = './edge_pred_gp/'
-
 
     def convert_graph_list_to_torch_tensors(self):
         if self.graph_history:
@@ -143,7 +117,8 @@ class GraphPredictor:
             for u, v in self.graph_history[0].edges():
                 self.edge_list.append([num, u, v])
                 num += 1
-            self.edge_list = np.array(self.edge_list)
+
+            # self.edge_list = np.array(self.edge_list)
 
             for t, g in enumerate(self.graph_history):
                 weights = []
@@ -221,7 +196,9 @@ class GraphPredictor:
 
                 single_loss.backward()
                 optimizer.step()
-            print(f'epoch: {epoch:3} loss: {epoch_loss/train_num:10.8f}')
+            
+            if epoch % 10 == 0:
+                print(f'epoch: {epoch:3} loss: {epoch_loss/train_num:10.8f}')
         
         state = {'net':model.state_dict(), 'optimizer':optimizer.state_dict(), 'epoch':epoch}
         model_ver = 2
@@ -249,13 +226,15 @@ class GraphPredictor:
                 test_mse.append(mse)
 
         y_draw = [float(item) for item in test_mse]
+        y_draw_avg = [y_draw[i-1]/i for i in range(1, len(y_draw)+1)]
         x_draw = list(range(test_num))
-        plt.plot()
-        plt.plot(x_draw, y_draw)
+        plt.plot(x_draw, y_draw_avg)
         plt.savefig("./mse_error_gp.png")
 
         train_ypr,train_ygt,test_ypr,test_ygt = self.drop_repeat(train_ypr_out,train_ygt_out,test_ypr_out,test_ygt_out)
-        trans_train_ypr, trans_test_ypr = self.clip(train_ypr,train_ygt,test_ypr,test_ygt)
+        # trans_train_ypr, trans_test_ypr = self.clip(train_ypr,train_ygt,test_ypr,test_ygt)
+        trans_train_ypr, trans_test_ypr = train_ypr, test_ypr 
+
         self.trans_train_ypr, self.trans_test_ypr = trans_train_ypr, trans_test_ypr
 
         edge_idxs = self.edge_idxs_show
@@ -279,7 +258,7 @@ class GraphPredictor:
         model.hidden_cell = [item.to(device=device) for item in model.hidden_cell]
         out_y = model(inp_x)
         out_y = out_y.reshape(self.n_next, self.num_edges)   #torch.Size([50, 45])
-        out_y = self.result_clip(out_y)
+        # out_y = self.result_clip(out_y)
 
         pred_res = dict()
         for i in range(len(futu_times)):
@@ -297,26 +276,6 @@ class GraphPredictor:
         grid_size = (4, 7)
         unweighted_grid_graph = nx.grid_2d_graph(grid_size[0], grid_size[1])
         unweighted_grid_graph.pos = dict((n,n) for n in unweighted_grid_graph.nodes())
-
-        # for t, pred_yt in pred_res.items():
-        #     current_heatmap_graph = nx.Graph()
-        #     for edge_idx in range(len(edge_list)):
-        #         edge = edge_list[edge_idx]
-        #         idx, sn , en = edge[0] , tuple(edge[1]) , tuple(edge[2])
-        #         current_heatmap_graph.add_edge(sn, en, weight=float(pred_yt[edge_idx]))
-        #         constr_edge_heat = current_heatmap_graph.get_edge_data(en,sn)['weight']
-        #         if constr_edge_heat == pred_yt[edge_idx]:
-        #             continue
-        #         else:
-        #             raise Exception('wrong')
-        #     pred_graphs.append(current_heatmap_graph)
-            # all_edges = current_heatmap_graph.edges(data=True)
-            # ed_num = 0
-            # for ed in all_edges:
-            #     print(ed[0],ed[1],ed[2]['weight'])
-            #     ed_num += 1
-            # print("total edge num ",ed_num)
-        
 
         pred_res_list = list(pred_res.values())
         one_tensor_shape = pred_res_list[0].shape
@@ -374,78 +333,9 @@ class GraphPredictor:
 
         return train_ypr_seq,train_ygt_seq,test_ypr_seq,test_ygt_seq
 
-    def result_clip(self, predY):
-        train_yi, test_yi = self.train_yi, self.test_yi         
-        yi = [list(set(train_yi[i] + test_yi[i])) for i in range(self.num_edges)]
-
-        trans_predY = torch.zeros(predY.shape[0], predY.shape[1]) - 1 
-
-        for i in range(predY.shape[0]):
-            raw = predY[i,:]   #(1,45)
-            new_raw = raw + 100
-            for e_idx in range(45):
-                if raw[e_idx] > 1:
-                    trans_y = 0.99
-                elif raw[e_idx] < 0:
-                    trans_y = 0
-                else:
-                    dis = [abs(item-raw[e_idx]) for item in yi[e_idx]]
-                    min_pos = dis.index(min(dis))
-                    trans_y = yi[e_idx][min_pos]
-                new_raw[e_idx] = float(trans_y)
-            trans_predY[i,:] = new_raw
-        return trans_predY
-    
-    def clip(self,train_ypr,train_ygt,test_ypr,test_ygt):
-        train_yi = []
-        for i in range(45):
-            edge_yi = [raw[i] for raw in train_ygt]
-            edge_yi = list(set(edge_yi))
-            train_yi.append(edge_yi)
-        test_yi = []
-        for i in range(45):
-            edge_yi = [raw[i] for raw in test_ygt]
-            edge_yi = list(set(edge_yi))
-            test_yi.append(edge_yi)
-        self.train_yi = train_yi 
-        self.test_yi = test_yi
-
-        #clip pr based on train_yi
-        trans_trainpr = []
-        for raw in train_ypr:
-            new_raw = np.zeros((45,1))-1
-            for e_idx in range(45):
-                if raw[e_idx] > 1:
-                    trans_y = 0.99
-                elif raw[e_idx] < 0:
-                    trans_y = 0
-                else:
-                    dis = [abs(item-raw[e_idx]) for item in train_yi[e_idx]]
-                    min_pos = dis.index(min(dis))
-                    trans_y = train_yi[e_idx][min_pos]
-                new_raw[e_idx] = trans_y
-            trans_trainpr.append(new_raw)
-
-        trans_testpr = []
-        for raw in test_ypr:
-            new_raw = np.zeros((45,1))-1
-            for e_idx in range(45):
-                if raw[e_idx] > 1:
-                    trans_y = 0.99
-                elif raw[e_idx] < 0:
-                    trans_y = 0
-                else:
-                    dis = [abs(item-raw[e_idx]) for item in train_yi[e_idx]]
-                    min_pos = dis.index(min(dis))
-                    trans_y = train_yi[e_idx][min_pos]
-                new_raw[e_idx] = trans_y
-            trans_testpr.append(new_raw)     
-        return trans_trainpr, trans_testpr   
-
     def split_pred_graphs_2_pickup_delivery(self, inter0, inter1, inter2, size=(4,7)):
         
         unweighted_graph01, dist01 = unweighted_graph(inter0._sector_level_coord, inter1._sector_level_coord)
-
         unweighted_graph12, dist12 = unweighted_graph(inter1._sector_level_coord, inter2._sector_level_coord)
 
         if len(self.pred_graphs) >= dist01 + dist12:
@@ -461,10 +351,16 @@ class GraphPredictor:
 
 
 if __name__ == "__main__":
-    # generate list of graphs
-    l = 200
-    list_of_graphs = [heatmap_animate(i) for i in range(l)]
+    grid_size = (4, 7)
+    #np.random.seed(1)
+    # Asin(t) + B
+    nums = 45
+    params = np.random.random(size=(nums, 2))
 
+    # heatmap_sequence_generator(10, params, grid_size)
+
+    l = 200
+    list_of_graphs = [heatmap_sequence_generator(i, params, grid_size) for i in range(l)]
     t = time()
     gp = GraphPredictor(list_of_graphs)
     gp.convert_graph_list_to_tensor_batch()
@@ -472,9 +368,3 @@ if __name__ == "__main__":
     t = time()
     gp.train()
     print("training time:\t", time() - t)
-    t = time()
-    predict_graphs = gp.predict()
-    print("predicting time:\t", time() - t)
-
-    print(len(predict_graphs))
-    print(type(predict_graphs[0]))
