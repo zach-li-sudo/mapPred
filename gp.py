@@ -97,7 +97,7 @@ class GraphPredictor:
         self.n_next = 50
         self.num_edges = 45
 
-        self.epochs = 50
+        self.epochs = 80
         self.model_savepath = './models/model1/model_gp.pth'
 
         self.all_X, self.all_Y, self.pred_X = None, None, None
@@ -152,7 +152,8 @@ class GraphPredictor:
         self.all_X, self.all_Y, self.pred_X = train_X, train_Y, pred_X
         return train_X, train_Y, pred_X # list of torch tensors
 
-    def train(self):
+    def train(self, my_epoch=50):
+        self.epochs = my_epoch
         all_X = self.all_X
         all_Y = self.all_Y
         device = self.device
@@ -239,8 +240,25 @@ class GraphPredictor:
 
         edge_idxs = self.edge_idxs_show
         for edge_idx in edge_idxs:
-            draw_plot(train_yt,train_ypr,train_ygt,test_yt,test_ypr,test_ygt,edge_idx,trans=False,edge_show_path=self.edge_show_dir)
+            draw_plot(train_yt, 
+                      train_ypr, 
+                      train_ygt,
+                      test_yt,
+                      test_ypr,
+                      test_ygt,
+                      edge_idx,
+                      trans=False,
+                      edge_show_path=self.edge_show_dir)
             draw_plot(train_yt,trans_train_ypr,train_ygt,test_yt,trans_test_ypr,test_ygt,edge_idx,trans=True,edge_show_path=self.edge_show_dir)
+        torch.save({
+            "train_yt": train_yt, 
+            "train_ypr": train_ypr, 
+            "train_ygt": train_ygt,
+            "test_yt": test_yt,
+            "test_ypr": test_ypr,
+            "test_ygt": test_ygt,
+             }, './tensor_pt/results_tensors.pt')
+        
 
     def predict(self, model_path='./models/model.pth'):
         future_pred_steps = self.n_next
