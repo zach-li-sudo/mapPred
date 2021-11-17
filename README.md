@@ -1,6 +1,6 @@
 When planning shortest paths for multiple robots in a large warehouse, we can make use of the prediction of future heat maps to detect possible congestion, which our smart robots can avoid before getting to the spot. This article is main about a heat map prediction module I designed for the warehouse project.
 
-Here is a demo of this LSTM predictor:
+Here is a demo of this LSTM predictor (hosted on [my GitHub repo](https://github.com/zach-li-sudo/mapPred)):
 
 <img src="tensor_pt/mygif.gif">
 
