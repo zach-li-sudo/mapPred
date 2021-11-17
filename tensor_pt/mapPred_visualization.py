@@ -44,18 +44,18 @@ for i, t in enumerate(time_series):
     # pos1 = ax1.imshow(heatmap1, cmap=cmap, interpolation=interpolation)
     pos1 = ax1.imshow(heatmap1, cmap=cmap, interpolation=interpolation, vmin=-8, vmax=10)
 
-    ax1.set_title(f'Groud Truth\n t={t}')
+    ax1.set_title("Ground Truth\n t={}".format(t))
     fig.colorbar(pos1, ax=ax1)
 
     # pos2 = ax2.imshow(heatmap1, cmap=cmap, interpolation=interpolation)
     pos2 = ax2.imshow(heatmap1, cmap=cmap, interpolation=interpolation, vmin=-8, vmax=10)
 
-    ax2.set_title(f'Prediction\n t={t}')
+    ax2.set_title("Prediction\n t={}".format(t))
     fig.colorbar(pos2, ax=ax2)
 
     mse_plot = mse_err[:i]
     pos3 = ax3.plot(mse_plot)
-    ax3.set_title(f'Mean square error \n t={t}')
+    ax3.set_title("Mean square error \n t={}".format(t))
 
     fig_path = './figs/frame{}.png'.format(t)
     filenames.append(fig_path)
@@ -69,6 +69,8 @@ with imageio.get_writer('mygif.gif', mode='I') as writer:
         image = imageio.imread(filename)
         writer.append_data(image)
 
+
+filenames.pop(0)
 
 # remove files
 for filename in set(filenames):

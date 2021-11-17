@@ -62,7 +62,6 @@ def heatmap_sequence_generator(t, params, grid_size):
 
     unweighted_grid_graph = nx.grid_2d_graph(grid_size[0], grid_size[1])
     unweighted_grid_graph.pos = dict((n,n) for n in unweighted_grid_graph.nodes())
-
     dynamic_graph = nx.Graph()
 
     i = 0
